@@ -146,8 +146,8 @@ watchdog **启动时及每 6 小时**检查 npm registry，并用 pnpm 更新 pr
 
 - **版本策略**：同 major 版本（0.1.3 → 0.1.4、0.2.x → 0.2.y）自动更新；major 变更（0.x → 1.x、1.x → 2.x、…）仅提示，需人工执行 `dsh_daemon_update` 工具。
 - **更新模式**（`DSH_DAEMON_UPDATE_MODE`）：
-  - `download`（默认）：新包安装到 profile 并写入待生效标记；下次自然重启 `dsh web` 时生效。绝不中断任何会话。
-  - `restart`：下载完成后，watchdog 每 30 秒轮询插件的 `/dsh-daemon/activity` 端点（进行中的回合 + 后台任务），仅在安静窗口后重启 `dsh web`——进行中的对话或任务会推迟重启直到结束。端点不可达（插件未挂载）时，仍会在 `DSH_DAEMON_DEFER_MAX` 之后重启。
+  - `restart`（默认）：下载完成后，watchdog 每 30 秒轮询插件的 `/dsh-daemon/activity` 端点（进行中的回合 + 后台任务），仅在安静窗口后重启 `dsh web`——进行中的对话或任务会推迟重启直到结束。端点不可达（插件未挂载）时，仍会在 `DSH_DAEMON_DEFER_MAX` 之后重启。完全无人值守。
+  - `download`：新包安装到 profile 并写入待生效标记；下次自然重启 `dsh web` 时生效。绝不中断任何会话，把"何时生效"的控制权留给用户。
 - **失败安全**：registry 不可达、pnpm 失败或更新后版本不一致只会写日志行与检查状态；旧包保持安装（pnpm store 保留旧版本，`dsh plugin --profile web add @chenkai114/dsh-daemon@<旧版>` 可回滚）。
 
 配置在 `dsh_daemon_install`/`reinstall` 时捕获并嵌入生成的 watchdog 脚本：
@@ -156,7 +156,7 @@ watchdog **启动时及每 6 小时**检查 npm registry，并用 pnpm 更新 pr
 | --- | --- | --- |
 | `DSH_DAEMON_AUTO_UPDATE` | `1` | `0` 关闭检查 |
 | `DSH_DAEMON_UPDATE_INTERVAL` | `6h` | 检查间隔（`ms`/`s`/`m`/`h`/`d`） |
-| `DSH_DAEMON_UPDATE_MODE` | `download` | `download` 或 `restart` |
+| `DSH_DAEMON_UPDATE_MODE` | `restart` | `restart` 或 `download` |
 | `DSH_DAEMON_QUIET_WINDOW` | `5m` | restart 模式重启前所需的安静时间 |
 | `DSH_DAEMON_DEFER_MAX` | `15m` | 活动端点不可达时最多等待多久再重启 |
 | `DSH_DAEMON_NPM_REGISTRY` | `https://registry.npmjs.org` | 检查与 pnpm 更新所用的 registry |

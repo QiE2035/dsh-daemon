@@ -184,15 +184,16 @@ The watchdog checks the npm registry **at startup and every 6 h** and updates
   automatically; a major change (0.x → 1.x, 1.x → 2.x, …) is only reported and
   requires the manual `dsh_daemon_update` tool.
 - **Update modes** (`DSH_DAEMON_UPDATE_MODE`):
-  - `download` (default): the new package is installed in the profile and a
-    pending marker is written; the update activates on the next natural
-    `dsh web` restart. No session is ever interrupted.
-  - `restart`: after downloading, the watchdog polls the plugin's
+  - `restart` (default): after downloading, the watchdog polls the plugin's
     `/dsh-daemon/activity` endpoint (agent turns + background jobs) every 30 s
     and restarts `dsh web` only after it has been idle for the quiet window —
     an in-progress conversation or job defers the restart until it finishes.
     If the endpoint is unreachable (plugin not mounted), the restart still
-    happens after `DSH_DAEMON_DEFER_MAX`.
+    happens after `DSH_DAEMON_DEFER_MAX`. Fully unattended.
+  - `download`: the new package is installed in the profile and a
+    pending marker is written; the update activates on the next natural
+    `dsh web` restart. No session is ever interrupted — the user decides when
+    the update takes effect.
 - **Failure safety**: registry unreachable, pnpm failure, or a version
   mismatch after update only writes a log line and the check state; the old
   package stays installed (pnpm's store keeps it, so
@@ -205,7 +206,7 @@ into the generated watchdog script:
 | --- | --- | --- |
 | `DSH_DAEMON_AUTO_UPDATE` | `1` | `0` disables the checks |
 | `DSH_DAEMON_UPDATE_INTERVAL` | `6h` | check interval (`ms`/`s`/`m`/`h`/`d`) |
-| `DSH_DAEMON_UPDATE_MODE` | `download` | `download` or `restart` |
+| `DSH_DAEMON_UPDATE_MODE` | `restart` | `restart` or `download` |
 | `DSH_DAEMON_QUIET_WINDOW` | `5m` | idle time required before a restart-mode restart |
 | `DSH_DAEMON_DEFER_MAX` | `15m` | max wait for the activity endpoint before restarting anyway |
 | `DSH_DAEMON_NPM_REGISTRY` | `https://registry.npmjs.org` | registry used for checks and pnpm update |
