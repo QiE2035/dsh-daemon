@@ -213,6 +213,7 @@ into the generated watchdog script:
 | `DSH_DAEMON_PROFILE` | `web` | profile directory holding the plugin |
 | `DSH_DAEMON_HEALTH_INTERVAL` | `30s` | health-check interval of the watchdog loop (`ms`/`s`/`m`; 3 failures trigger a restart) |
 | `DSH_DAEMON_CLI_DIR` | node bin dir | directory for the generated `dsh-daemon` CLI (tests/sandboxed installs point it at a temp dir to avoid polluting the real PATH) |
+| `DSH_DAEMON_NO_SYSTEM` | unset | when `1`, skips system-level registration (launchd/schtasks/systemd) — test/sandboxed installs never touch the host's services; the watchdog is still started directly |
 
 > The auto-update logic lives in the generated `watchdog.js`; after upgrading
 > to a version with new update logic, run `dsh_daemon_reinstall` once to

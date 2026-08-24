@@ -163,6 +163,7 @@ watchdog **启动时及每 6 小时**检查 npm registry，并用 pnpm 更新 pr
 | `DSH_DAEMON_PROFILE` | `web` | 存放插件的 profile 目录 |
 | `DSH_DAEMON_HEALTH_INTERVAL` | `30s` | watchdog 循环的健康检查间隔（`ms`/`s`/`m`；连续 3 次失败触发重启） |
 | `DSH_DAEMON_CLI_DIR` | node bin 目录 | 生成的 `dsh-daemon` CLI 写入目录（测试/沙箱安装时指向临时目录，避免污染真实 PATH） |
+| `DSH_DAEMON_NO_SYSTEM` | 未设置 | `1` 时跳过系统级注册（launchd/schtasks/systemd）——测试/沙箱安装不触碰宿主系统服务，watchdog 仍直接启动 |
 
 > 自动更新逻辑位于生成的 `watchdog.js` 中；升级到含新更新逻辑的版本后，运行一次 `dsh_daemon_reinstall` 重新生成。
 

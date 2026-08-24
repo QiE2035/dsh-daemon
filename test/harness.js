@@ -22,6 +22,10 @@ process.env.DSH_DAEMON_AUTOREGEN = '0';
 // Point the generated dsh-daemon CLI at a temp dir so install/reinstall
 // tests never overwrite the real wrapper in the node bin directory.
 process.env.DSH_DAEMON_CLI_DIR = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'dsh-daemon-cli-'));
+// Never touch the real host's launchd / Task Scheduler / systemd: a test
+// install/reinstall must not register a system service (and, worse, steal
+// the label of the real one, leaving the real daemon dead).
+process.env.DSH_DAEMON_NO_SYSTEM = '1';
 
 const root = path.join(__dirname, '..');
 const toolName = process.argv[2];
