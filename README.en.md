@@ -258,6 +258,23 @@ turn — the whole chain stays windowless (verified on v0.1.10).
 > [discussion #1564](https://github.com/deepseek-ai/deepseek-harness/discussions/1564)
 > and the Culeot/dsh-no-console-flash patch.
 
+### v0.1.13 — watchdog regenerated automatically after auto-update
+
+Previously auto-update only refreshed the npm package; the already-generated
+`watchdog.js` (a one-time artifact from install time) never picked up the new
+generator logic — a manual `dsh_daemon_reinstall` was required. Since v0.1.13:
+
+- the plugin version is embedded into the generated watchdog (`GEN_VERSION`);
+- on every plugin boot the script's `GEN_VERSION` is compared with the
+  installed package version; when they differ (after an auto-update, or a
+  manual package upgrade) the plugin regenerates `watchdog.js` and the CLI
+  wrapper and restarts the watchdog process;
+- so after an auto-update (user restarts web in download mode, or the
+  idle-aware restart does it in restart mode) or a manual upgrade + web
+  restart, the watchdog catches up with the new version on its own — no
+  manual `dsh_daemon_reinstall`;
+- test/development loads can skip the sync with `DSH_DAEMON_AUTOREGEN=0`.
+
 ---
 
 ## License

@@ -203,6 +203,21 @@ web 的子进程再继承 → 整条链不弹窗（此行为已在 v0.1.10 实�
 > 插件无关——见 [discussion #1564](https://github.com/deepseek-ai/deepseek-harness/discussions/1564)
 > 及 Culeot/dsh-no-console-flash 补丁。
 
+### v0.1.13 — 自动更新后自动重新生成 watchdog
+
+此前自动更新只刷新 npm 包，已生成的 `watchdog.js`（安装时的一次性产物）
+不会自动用上新版的生成逻辑——需要手动 `dsh_daemon_reinstall`。v0.1.13
+起：
+
+- 生成 watchdog 时把**插件版本**嵌入脚本（`GEN_VERSION` 常量）；
+- 插件每次启动时比对 `GEN_VERSION` 与当前安装版本，不一致（自动更新
+  后、或手动升级包后）即自动**重新生成 watchdog.js 与 CLI wrapper 并
+  重启 watchdog 进程**；
+- 因此自动更新（download 模式用户重启 web / restart 模式自动重启 web）
+  或手动升级后重启 `dsh web`，watchdog 都会自动跟上新版，无需手动
+  `dsh_daemon_reinstall`；
+- 测试/开发加载可通过 `DSH_DAEMON_AUTOREGEN=0` 跳过该同步。
+
 ---
 
 ## 许可证

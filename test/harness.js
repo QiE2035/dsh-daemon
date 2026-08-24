@@ -16,6 +16,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
+// Never let the boot-time watchdog regeneration touch the real daemon while
+// a test harness is exercising the plugin (see regenerateWatchdogIfStale).
+process.env.DSH_DAEMON_AUTOREGEN = '0';
+
 const root = path.join(__dirname, '..');
 const toolName = process.argv[2];
 const toolArgs = process.argv[3] ? JSON.parse(process.argv[3]) : {};
