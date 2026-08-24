@@ -19,6 +19,9 @@ const { execFileSync } = require('node:child_process');
 // Never let the boot-time watchdog regeneration touch the real daemon while
 // a test harness is exercising the plugin (see regenerateWatchdogIfStale).
 process.env.DSH_DAEMON_AUTOREGEN = '0';
+// Point the generated dsh-daemon CLI at a temp dir so install/reinstall
+// tests never overwrite the real wrapper in the node bin directory.
+process.env.DSH_DAEMON_CLI_DIR = fs.mkdtempSync(path.join(require('node:os').tmpdir(), 'dsh-daemon-cli-'));
 
 const root = path.join(__dirname, '..');
 const toolName = process.argv[2];

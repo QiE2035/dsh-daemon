@@ -212,6 +212,7 @@ into the generated watchdog script:
 | `DSH_DAEMON_NPM_REGISTRY` | `https://registry.npmjs.org` | registry used for checks and pnpm update |
 | `DSH_DAEMON_PROFILE` | `web` | profile directory holding the plugin |
 | `DSH_DAEMON_HEALTH_INTERVAL` | `30s` | health-check interval of the watchdog loop (`ms`/`s`/`m`; 3 failures trigger a restart) |
+| `DSH_DAEMON_CLI_DIR` | node bin dir | directory for the generated `dsh-daemon` CLI (tests/sandboxed installs point it at a temp dir to avoid polluting the real PATH) |
 
 > The auto-update logic lives in the generated `watchdog.js`; after upgrading
 > to a version with new update logic, run `dsh_daemon_reinstall` once to
