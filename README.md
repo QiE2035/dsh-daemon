@@ -189,21 +189,37 @@ DYNAMIC=1 node test/harness.js dsh_daemon_status # 动态沙箱模式
 
 测试驱动运行真实插件代码（真实 bash/fs），并真实调用工具。
 
-### v0.1.12 — Windows 弹窗回归修复
+### v0.1.16 — 健康检查、浏览器弹窗与环境变量转发
 
-v0.1.11 给 watchdog 的 `launch()` 等 spawn 加了 `windowsHide: true`（对应
-Windows `CREATE_NO_WINDOW`）。副作用是 `dsh web` 进程**失去控制台句柄**，
-此后 web 内部任何子进程（git、工具执行等）在 Windows 上都会新建**可见**
-控制台窗口 → 运行期频繁弹窗（[issue #1](https://github.com/chenkai2/dsh-daemon/issues/1)）。
+- **`/health` 路由**：watchdog 每 30s 检查 `http://127.0.0.1:<port>/health`，
+  但 deepseek-harness 的 web server 没有该路由（未知路径 404），导致
+  web 明明在跑却永远报 unhealthy。插件现在自己注册 `/health`，返回
+  `200 {"ok":true}`——插件在线即 web 在线，检测可靠。
+- **`--no-open`**：daemon 托管的 web 重启（自动更新、自愈）不再自动
+  弹浏览器 tab；手动 `dsh web` 仍保持默认打开。
+- **环境变量转发**：`dsh-daemon install/uninstall/reinstall` 通过
+  `/dsh-daemon/command` 路由在 web 进程里执行，之前 shell 里的
+  `DSH_DAEMON_*` 变量到不了插件。现在 CLI wrapper 收集当前 shell 的
+  全部 `DSH_DAEMON_*` 并随请求转发，因此
+  `DSH_DAEMON_UPDATE_INTERVAL=1m dsh-daemon reinstall` 能正确配置
+  watchdog。
 
-v0.1.12 移除全部 4 处 `windowsHide`，恢复 v0.1.10 的模型：watchdog 由
-VBS `shell.Run ..., 0`（SW_HIDE）启动时自带**隐藏控制台**，web 继承它，
-web 的子进程再继承 → 整条链不弹窗（此行为已在 v0.1.10 实测）。
+### v0.1.15 — 测试/沙箱安装不再污染宿主系统
 
-> 注意：安装/执行插件命令时若仍有弹窗（DSH 沙箱/子进程路径，非本插件
-> watchdog），那是 deepseek-harness 自身的 Windows 控制台处理问题，与本
-> 插件无关——见 [discussion #1564](https://github.com/deepseek-ai/deepseek-harness/discussions/1564)
-> 及 Culeot/dsh-no-console-flash 补丁。
+测试 harness 用临时 HOME 跑 install 时会污染真实环境，两个开关封堵：
+
+- `DSH_DAEMON_CLI_DIR`：覆盖生成的 `dsh-daemon` CLI 的写入目录（默认
+  node bin），测试指向临时目录，不再覆盖真实 PATH 里的 wrapper；
+- `DSH_DAEMON_NO_SYSTEM`：`1` 时跳过系统级注册（launchd/schtasks/
+  systemd），防止测试 install 按 label 抢注系统服务、让真实 daemon
+  失效。harness 默认同时设置两者。
+
+### v0.1.14 — restart 成为默认自动更新模式
+
+`DSH_DAEMON_UPDATE_MODE` 的默认值从 `download` 改为 `restart`：未显式
+设置时，更新下载后 watchdog 会在 web 空闲时自动重启生效（完全无人
+值守，绝不打断进行中的会话）。需要手动控制生效时机时显式设为
+`download`。
 
 ### v0.1.13 — 自动更新后自动重新生成 watchdog
 
@@ -220,37 +236,21 @@ web 的子进程再继承 → 整条链不弹窗（此行为已在 v0.1.10 实�
   `dsh_daemon_reinstall`；
 - 测试/开发加载可通过 `DSH_DAEMON_AUTOREGEN=0` 跳过该同步。
 
-### v0.1.14 — restart 成为默认自动更新模式
+### v0.1.12 — Windows 弹窗回归修复
 
-`DSH_DAEMON_UPDATE_MODE` 的默认值从 `download` 改为 `restart`：未显式
-设置时，更新下载后 watchdog 会在 web 空闲时自动重启生效（完全无人
-值守，绝不打断进行中的会话）。需要手动控制生效时机时显式设为
-`download`。
+v0.1.11 给 watchdog 的 `launch()` 等 spawn 加了 `windowsHide: true`（对应
+Windows `CREATE_NO_WINDOW`）。副作用是 `dsh web` 进程**失去控制台句柄**，
+此后 web 内部任何子进程（git、工具执行等）在 Windows 上都会新建**可见**
+控制台窗口 → 运行期频繁弹窗（[issue #1](https://github.com/chenkai2/dsh-daemon/issues/1)）。
 
-### v0.1.15 — 测试/沙箱安装不再污染宿主系统
+v0.1.12 移除全部 4 处 `windowsHide`，恢复 v0.1.10 的模型：watchdog 由
+VBS `shell.Run ..., 0`（SW_HIDE）启动时自带**隐藏控制台**，web 继承它，
+web 的子进程再继承 → 整条链不弹窗（此行为已在 v0.1.10 实测）。
 
-测试 harness 用临时 HOME 跑 install 时会污染真实环境，两个开关封堵：
-
-- `DSH_DAEMON_CLI_DIR`：覆盖生成的 `dsh-daemon` CLI 的写入目录（默认
-  node bin），测试指向临时目录，不再覆盖真实 PATH 里的 wrapper；
-- `DSH_DAEMON_NO_SYSTEM`：`1` 时跳过系统级注册（launchd/schtasks/
-  systemd），防止测试 install 按 label 抢注系统服务、让真实 daemon
-  失效。harness 默认同时设置两者。
-
-### v0.1.16 — 健康检查、浏览器弹窗与环境变量转发
-
-- **`/health` 路由**：watchdog 每 30s 检查 `http://127.0.0.1:<port>/health`，
-  但 deepseek-harness 的 web server 没有该路由（未知路径 404），导致
-  web 明明在跑却永远报 unhealthy。插件现在自己注册 `/health`，返回
-  `200 {"ok":true}`——插件在线即 web 在线，检测可靠。
-- **`--no-open`**：daemon 托管的 web 重启（自动更新、自愈）不再自动
-  弹浏览器 tab；手动 `dsh web` 仍保持默认打开。
-- **环境变量转发**：`dsh-daemon install/uninstall/reinstall` 通过
-  `/dsh-daemon/command` 路由在 web 进程里执行，之前 shell 里的
-  `DSH_DAEMON_*` 变量到不了插件。现在 CLI wrapper 收集当前 shell 的
-  全部 `DSH_DAEMON_*` 并随请求转发，因此
-  `DSH_DAEMON_UPDATE_INTERVAL=1m dsh-daemon reinstall` 能正确配置
-  watchdog。
+> 注意：安装/执行插件命令时若仍有弹窗（DSH 沙箱/子进程路径，非本插件
+> watchdog），那是 deepseek-harness 自身的 Windows 控制台处理问题，与本
+> 插件无关——见 [discussion #1564](https://github.com/deepseek-ai/deepseek-harness/discussions/1564)
+> 及 Culeot/dsh-no-console-flash 补丁。
 
 ---
 
