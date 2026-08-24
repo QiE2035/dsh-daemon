@@ -278,6 +278,45 @@ generator logic — a manual `dsh_daemon_reinstall` was required. Since v0.1.13:
   manual `dsh_daemon_reinstall`;
 - test/development loads can skip the sync with `DSH_DAEMON_AUTOREGEN=0`.
 
+### v0.1.14 — restart is now the default auto-update mode
+
+The default of `DSH_DAEMON_UPDATE_MODE` changed from `download` to
+`restart`: when unset, after an update is downloaded the watchdog restarts
+`dsh web` on its own once it is idle (fully unattended, never interrupting
+an in-progress session). Set it explicitly to `download` when you want to
+control when the update takes effect.
+
+### v0.1.15 — test/sandboxed installs no longer touch the host
+
+Test harness installs with a temp HOME used to pollute the real environment;
+two switches close that gap:
+
+- `DSH_DAEMON_CLI_DIR`: overrides where the generated `dsh-daemon` CLI is
+  written (default: node bin) — tests point it at a temp dir so the real
+  wrapper on PATH is never overwritten;
+- `DSH_DAEMON_NO_SYSTEM`: when `1`, skips system-level registration
+  (launchd/schtasks/systemd) so a test install cannot steal the system
+  service label and leave the real daemon dead. The harness sets both by
+  default.
+
+### v0.1.16 — health check, browser pop-ups, and env forwarding
+
+- **`/health` route**: the watchdog health-checks
+  `http://127.0.0.1:<port>/health` every 30 s, but deepseek-harness's web
+  server has no such route (unknown paths 404), so a running web was
+  reported unhealthy forever. The plugin now registers `/health` itself,
+  returning `200 {"ok":true}` — plugin up means web up, and the check is
+  reliable.
+- **`--no-open`**: daemon-managed web restarts (auto-update, self-heal) no
+  longer pop a browser tab; manual `dsh web` still opens by default.
+- **Env forwarding**: `dsh-daemon install/uninstall/reinstall` execute in
+  the web process via the `/dsh-daemon/command` route, so `DSH_DAEMON_*`
+  variables from the invoking shell never reached the plugin. The CLI
+  wrapper now collects all `DSH_DAEMON_*` from the current shell and
+  forwards them with the request, so
+  `DSH_DAEMON_UPDATE_INTERVAL=1m dsh-daemon reinstall` configures the
+  watchdog correctly.
+
 ---
 
 ## License
