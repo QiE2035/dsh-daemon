@@ -187,6 +187,22 @@ DYNAMIC=1 node test/harness.js dsh_daemon_status # 动态沙箱模式
 
 测试驱动运行真实插件代码（真实 bash/fs），并真实调用工具。
 
+### v0.1.12 — Windows 弹窗回归修复
+
+v0.1.11 给 watchdog 的 `launch()` 等 spawn 加了 `windowsHide: true`（对应
+Windows `CREATE_NO_WINDOW`）。副作用是 `dsh web` 进程**失去控制台句柄**，
+此后 web 内部任何子进程（git、工具执行等）在 Windows 上都会新建**可见**
+控制台窗口 → 运行期频繁弹窗（[issue #1](https://github.com/chenkai2/dsh-daemon/issues/1)）。
+
+v0.1.12 移除全部 4 处 `windowsHide`，恢复 v0.1.10 的模型：watchdog 由
+VBS `shell.Run ..., 0`（SW_HIDE）启动时自带**隐藏控制台**，web 继承它，
+web 的子进程再继承 → 整条链不弹窗（此行为已在 v0.1.10 实测）。
+
+> 注意：安装/执行插件命令时若仍有弹窗（DSH 沙箱/子进程路径，非本插件
+> watchdog），那是 deepseek-harness 自身的 Windows 控制台处理问题，与本
+> 插件无关——见 [discussion #1564](https://github.com/deepseek-ai/deepseek-harness/discussions/1564)
+> 及 Culeot/dsh-no-console-flash 补丁。
+
 ---
 
 ## 许可证

@@ -239,6 +239,25 @@ DYNAMIC=1 node test/harness.js dsh_daemon_status # dynamic sandbox mode
 The harness runs the real plugin code with real bash/fs and invokes the tool
 for real.
 
+### v0.1.12 — Windows console-flash regression fix
+
+v0.1.11 added `windowsHide: true` (Windows `CREATE_NO_WINDOW`) to the
+watchdog's `launch()` and other spawns. The side effect: the `dsh web`
+process **lost its console handle**, so any child it spawns afterwards (git,
+tool executions, …) gets a **visible** console window on Windows — frequent
+console flashes while the server runs ([issue #1](https://github.com/chenkai2/dsh-daemon/issues/1)).
+
+v0.1.12 removes all four `windowsHide` flags and restores the v0.1.10 model:
+the watchdog is started by VBS `shell.Run ..., 0` (SW_HIDE) with its own
+**hidden console**, the web process inherits it, and web's children inherit in
+turn — the whole chain stays windowless (verified on v0.1.10).
+
+> Note: if console windows still flash during plugin install/command execution
+> (the DSH sandbox/subprocess path, not this plugin's watchdog), that is a
+> deepseek-harness Windows console-handling issue, not this plugin — see
+> [discussion #1564](https://github.com/deepseek-ai/deepseek-harness/discussions/1564)
+> and the Culeot/dsh-no-console-flash patch.
+
 ---
 
 ## License
