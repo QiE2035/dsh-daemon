@@ -242,6 +242,27 @@ DYNAMIC=1 node test/harness.js dsh_daemon_status # dynamic sandbox mode
 The harness runs the real plugin code with real bash/fs and invokes the tool
 for real.
 
+### v0.1.17 — pass `--no-open` only when the dsh version supports it
+
+Since v0.1.16 the watchdog launched `dsh web --port <port> --no-open`, but
+`--no-open` only exists in `@deepseek-ai/dsh` **0.1.0-rc.8** (dsh-web-app
+0.1.0-rc.8, which also introduced default browser opening). Older CLIs reject
+the flag with `unknown option '--no-open'` and exit immediately, so the
+watchdog fell into a restart loop: launch → instant death → failed health
+check → relaunch, and web never came up.
+
+- The watchdog reads the dsh package `package.json` version at every launch
+  and appends `--no-open` only when it is **≥ 0.1.0-rc.8** (semver, including
+  prerelease ordering); an unknown/unreadable version conservatively skips the
+  flag — the server still starts, and pre-rc.8 dsh never opened a browser
+  anyway, so nothing is lost;
+- the `dsh-daemon start` direct-launch commands (Windows `Start-Process` /
+  Unix `nohup`) make the same version-based decision;
+- the gate is a single module-scope implementation; the watchdog inlines the
+  exact same code via `Function.prototype.toString()`, so dsh upgrades or
+  downgrades take effect at the next launch without reinstalling the daemon;
+- new `test/version-gate.test.js` unit tests (run by `npm test`).
+
 ### v0.1.16 — health check, browser pop-ups, and env forwarding
 
 - **`/health` route**: the watchdog health-checks

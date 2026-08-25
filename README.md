@@ -189,6 +189,23 @@ DYNAMIC=1 node test/harness.js dsh_daemon_status # 动态沙箱模式
 
 测试驱动运行真实插件代码（真实 bash/fs），并真实调用工具。
 
+### v0.1.17 — 按 dsh 版本决定是否传 `--no-open`
+
+v0.1.16 起 watchdog 用 `dsh web --port <port> --no-open` 拉起服务，但
+`--no-open` 是 `@deepseek-ai/dsh` **0.1.0-rc.8**（dsh-web-app 0.1.0-rc.8，
+同期加入默认弹浏览器行为）才支持的参数：旧版 CLI 直接报
+`unknown option '--no-open'` 退出，导致 watchdog 陷入「拉起即死 → 健康
+检查失败 → 再拉起」的死循环，web 永远起不来。
+
+- watchdog 每次 launch 时读取 dsh 包 `package.json` 的版本做 semver 比较，
+  **≥ 0.1.0-rc.8 才追加 `--no-open`**；版本未知/读不到时保守跳过——服务照常
+  启动，且 rc.8 之前的 dsh 本来就不弹浏览器，零损失；
+- `dsh-daemon start` 的直启命令（Windows `Start-Process` / Unix `nohup`）
+  同步按版本决定是否带 `--no-open`；
+- 门控函数是模块级单一实现，watchdog 通过 `Function.prototype.toString()`
+  内联同一份代码——升级/降级 dsh 无需重装 daemon，每次拉起都会重新判定；
+- 新增 `test/version-gate.test.js` 单元测试（`npm test` 一并运行）。
+
 ### v0.1.16 — 健康检查、浏览器弹窗与环境变量转发
 
 - **`/health` 路由**：watchdog 每 30s 检查 `http://127.0.0.1:<port>/health`，
