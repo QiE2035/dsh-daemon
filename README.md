@@ -189,6 +189,45 @@ DYNAMIC=1 node test/harness.js dsh_daemon_status # 动态沙箱模式
 
 测试驱动运行真实插件代码（真实 bash/fs），并真实调用工具。
 
+### v0.1.18 — Windows 黑框修复：隐藏控制台而非无控制台；`start` 等待健康
+
+Windows 上 watchdog 用 `CP.spawn(..., { detached: true })` 拉起 `dsh web`、
+pnpm、netstat 等子进程时，Node 默认给 detached 子进程分配**独立控制台窗口**
+（watchdog 本身由 VBS/计划任务隐藏启动、无控制台），于是每次拉起/重启都会
+闪出黑框。v0.1.17 的 `--no-open` 修复让重启循环消失后，黑框成了最显眼的问题。
+
+**机制选择（deepseek-harness discussion #1564 / #810）**：不能给 `dsh web`
+用 `windowsHide`（CREATE_NO_WINDOW）——无控制台的宿主会让它每次 spawn 的
+子进程都新建一个可见控制台，而且 CREATE_NO_WINDOW 会让 Windows ACL 沙箱的
+受限令牌子进程直接 0xC0000142（DLL 初始化失败）。正确做法是**给 `dsh web`
+一个隐藏的控制台**（STARTF_USESHOWWINDOW + SW_HIDE，保持 dwCreationFlags=0，
+Windows 上经 `Start-Process -WindowStyle Hidden` 实现，与 `dsh-daemon start`
+直启路径一致）：dsh web 自身无可见窗口，它的控制台子进程又继承这个隐藏控制台，
+层层都不再闪框。
+
+- win32 上 watchdog 改经 `powershell.exe -Command "Start-Process -FilePath
+  <node> -ArgumentList ... -WindowStyle Hidden -RedirectStandardOutput
+  <web.log> -PassThru"` 拉起 dsh web（wrapper 本身 windowsHide，短命且普通
+  令牌，安全），PID 由 wrapper 写入 pidfile、watchdog 轮询确认；
+  ⚠️ wrapper **不能带 `detached: true`**——Node 在 Windows 上把它映射成
+  `DETACHED_PROCESS`，会让 Start-Process 整条命令卡死（PID 不写、子进程不
+  起，实测复现）；Start-Process 的子进程本就独立存活，wrapper 无需脱离；
+- watchdog 其余短命子进程（自spawn、pnpm、空闲重启 waiter、netstat/lsof）
+  保留 `windowsHide: true`——普通令牌下安全，且与讨论中 subprocess-local
+  的处理一致；
+- `dsh-daemon start` 现在像 `restart` 一样在 launch 后**轮询等待健康**（最多
+  约 13s）再返回——此前 dsh web 要十几秒才起来，`start` 立即返回导致紧随的
+  `status` 显示 unhealthy，用户常误以为失败又重复 start（重复 start 会按 PID
+  文件杀掉上一个还在启动的实例）；
+- 模板断言：spawn 点必须带 `windowsHide`，且 win32 拉起必须走
+  `Start-Process -WindowStyle Hidden`（防回归）。
+
+> 注：dsh 内部组件（`dsh-sandbox-windows-acl` 两处 spawn
+> `dwFlags:256→257` + `wShowWindow:0`；`dsh-subprocess-local` 加
+> `windowsHide:true`）是 #1564 讨论里的另一层补丁，针对 dsh 本体、不属于本
+> 仓库；升级 dsh 后需重新应用（社区补丁脚本
+> `Culeot/dsh-no-console-flash` 幂等可重跑）。
+
 ### v0.1.17 — 按 dsh 版本决定是否传 `--no-open`
 
 v0.1.16 起 watchdog 用 `dsh web --port <port> --no-open` 拉起服务，但

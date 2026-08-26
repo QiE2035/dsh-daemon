@@ -242,6 +242,54 @@ DYNAMIC=1 node test/harness.js dsh_daemon_status # dynamic sandbox mode
 The harness runs the real plugin code with real bash/fs and invokes the tool
 for real.
 
+### v0.1.18 — Windows black-box fix: hidden console, not no console; `start` waits for health
+
+On Windows the watchdog spawns `dsh web`, pnpm, netstat, etc. with
+`CP.spawn(..., { detached: true })`, and Node gives detached children their
+**own console window** by default (the watchdog itself runs hidden — VBS /
+Task Scheduler — and has no console), so every launch/restart flashed black
+boxes. Once v0.1.17 fixed the `--no-open` restart loop, the black boxes became
+the visible problem.
+
+**Mechanism choice (deepseek-harness discussion #1564 / #810)**: `dsh web`
+must NOT be launched with `windowsHide` (CREATE_NO_WINDOW) — a console-less
+host forces every child it spawns to allocate a new visible console, and
+CREATE_NO_WINDOW kills the Windows ACL sandbox's restricted-token children
+with 0xC0000142 (DLL initialization failed). The correct approach is to give
+`dsh web` a **hidden console** (STARTF_USESHOWWINDOW + SW_HIDE, keeping
+dwCreationFlags=0 — on Windows implemented via `Start-Process -WindowStyle
+Hidden`, matching the `dsh-daemon start` direct-launch path): dsh web has no
+visible window itself, and its console children inherit that hidden console,
+so nothing flashes at any level.
+
+- on win32 the watchdog now launches dsh web through
+  `powershell.exe -Command "Start-Process -FilePath <node> -ArgumentList ...
+  -WindowStyle Hidden -RedirectStandardOutput <web.log> -PassThru"` (the
+  powershell wrapper itself uses windowsHide — short-lived, normal token,
+  safe); the wrapper writes the PID file and the watchdog polls for it;
+  ⚠️ the wrapper must NOT use `detached: true` — Node maps it to
+  `DETACHED_PROCESS` on Windows, which hangs the Start-Process command (no PID
+  file, child never starts; reproduced empirically). Start-Process children
+  are independent processes anyway, so the short-lived wrapper needs no
+  detachment;
+- the watchdog's other short-lived children (self-spawn, pnpm, idle-restart
+  waiter, netstat/lsof probes) keep `windowsHide: true` — safe under a normal
+  token, consistent with the discussion's subprocess-local treatment;
+- `dsh-daemon start` now polls for health after launching (like `restart`
+  does, up to ~13 s) before returning — previously `start` returned while
+  `dsh web` was still booting, the next `status` looked unhealthy, and users
+  ran `start` again, which killed the still-booting first instance via the
+  PID file;
+- template assertions: every spawn site carries `windowsHide`, and the win32
+  web launch must go through `Start-Process -WindowStyle Hidden` (regression
+  guard).
+
+> Note: the DSH-internal layer from #1564 (two spawns in
+> `dsh-sandbox-windows-acl` `dwFlags:256→257` + `wShowWindow:0`;
+> `windowsHide:true` in `dsh-subprocess-local`) is a patch to dsh itself, not
+> this repo; re-apply it after upgrading dsh (the community script
+> `Culeot/dsh-no-console-flash` is idempotent).
+
 ### v0.1.17 — pass `--no-open` only when the dsh version supports it
 
 Since v0.1.16 the watchdog launched `dsh web --port <port> --no-open`, but

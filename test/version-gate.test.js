@@ -60,4 +60,37 @@ assert.ok(!src.includes("[DSH_BIN, \\'web\\', \\'--port\\', String(PORT), \\'--n
 assert.ok(src.includes('versionGte.toString()'),
   'template should inline the gate functions from the module-scope originals');
 
+// Every child-process call in the generated watchdog must hide its console on
+// Windows — otherwise each spawn flashes a black cmd box (Node gives detached
+// children their own console window by default). Two mechanisms, per
+// deepseek-harness discussion #1564: the dsh web launch gets a HIDDEN console
+// (STARTF_USESHOWWINDOW + SW_HIDE via Start-Process -WindowStyle Hidden, keep
+// dwCreationFlags=0 — CREATE_NO_WINDOW would break restricted-token sandbox
+// children with 0xC0000142, #810), while the short-lived helper spawns use
+// windowsHide (normal token, safe).
+const tplStart = src.indexOf('function watchdogScript');
+const tplEnd = src.indexOf('function plistContent');
+assert.ok(tplStart > 0 && tplEnd > tplStart, 'template region not found in lib/index.js');
+const tpl = src.slice(tplStart, tplEnd);
+const spawnCalls = tpl.match(/CP\.(?:spawn|execFileSync)\([^;]*?\)/g) || [];
+assert.ok(spawnCalls.length >= 7, 'expected >=7 spawn/execFileSync calls in the template, got ' + spawnCalls.length);
+for (const call of spawnCalls) {
+  assert.ok(call.includes('windowsHide: true'),
+    'spawn/execFileSync call must set windowsHide: true (black console boxes on Windows): ' + call);
+}
+// The win32 web launch must use a hidden console (SW_HIDE), not windowsHide:
+assert.ok(src.includes("'Start-Process -FilePath '"),
+  'win32 launch should spawn via Start-Process');
+assert.ok(src.includes('-WindowStyle Hidden'),
+  'win32 launch should pass -WindowStyle Hidden (STARTF_USESHOWWINDOW + SW_HIDE)');
+assert.ok(src.includes('0xC0000142'),
+  'template comment should document why CREATE_NO_WINDOW is avoided');
+// The powershell wrapper must NOT be detached: on Windows Node maps
+// detached:true to DETACHED_PROCESS, which hangs Start-Process (no PID file,
+// child never starts — verified empirically).
+const wrapperSpawn = spawnCalls.find((c) => c.includes('powershell.exe'));
+assert.ok(wrapperSpawn, 'powershell wrapper spawn should exist in the template');
+assert.ok(!wrapperSpawn.includes('detached'),
+  'powershell wrapper spawn must not use detached (DETACHED_PROCESS hangs Start-Process): ' + wrapperSpawn);
+
 console.log(`version-gate tests passed (${cases.length} versionGte cases + template wiring)`);
