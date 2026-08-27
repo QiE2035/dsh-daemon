@@ -271,7 +271,10 @@ so nothing flashes at any level.
   `DETACHED_PROCESS` on Windows, which hangs the Start-Process command (no PID
   file, child never starts; reproduced empirically). Start-Process children
   are independent processes anyway, so the short-lived wrapper needs no
-  detachment;
+  detachment; Start-Process redirects with OVERWRITE semantics, so before
+  each launch the old `dsh-web.log` is rotated to `dsh-web.log.1` (the
+  previous run's crash output survives; the log stays bounded — current +
+  one previous run, never unbounded);
 - the watchdog's other short-lived children (self-spawn, pnpm, idle-restart
   waiter, netstat/lsof probes) keep `windowsHide: true` — safe under a normal
   token, consistent with the discussion's subprocess-local treatment;

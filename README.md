@@ -212,6 +212,9 @@ Windows 上经 `Start-Process -WindowStyle Hidden` 实现，与 `dsh-daemon star
   ⚠️ wrapper **不能带 `detached: true`**——Node 在 Windows 上把它映射成
   `DETACHED_PROCESS`，会让 Start-Process 整条命令卡死（PID 不写、子进程不
   起，实测复现）；Start-Process 的子进程本就独立存活，wrapper 无需脱离；
+  Start-Process 的重定向是**覆盖**语义，因此每次拉起前先把旧
+  `dsh-web.log` 轮转为 `dsh-web.log.1`（保留上一代崩溃现场），新日志有界
+  （当前 + 上一代，不无限增长）；
 - watchdog 其余短命子进程（自spawn、pnpm、空闲重启 waiter、netstat/lsof）
   保留 `windowsHide: true`——普通令牌下安全，且与讨论中 subprocess-local
   的处理一致；

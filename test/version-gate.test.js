@@ -92,5 +92,12 @@ const wrapperSpawn = spawnCalls.find((c) => c.includes('powershell.exe'));
 assert.ok(wrapperSpawn, 'powershell wrapper spawn should exist in the template');
 assert.ok(!wrapperSpawn.includes('detached'),
   'powershell wrapper spawn must not use detached (DETACHED_PROCESS hangs Start-Process): ' + wrapperSpawn);
+// The win32 web log is rotated before the fresh run: Start-Process redirects
+// with overwrite semantics, so the previous generation is kept as web.log.1
+// (bounded: current + one previous run; previous crash output survives).
+assert.ok(src.includes('Move-Item -Force'),
+  'win32 launch should rotate web.log -> web.log.1 before Start-Process');
+assert.ok(src.includes("WEB_LOG + \\'.1\\'"),
+  'rotation target should be web.log.1');
 
 console.log(`version-gate tests passed (${cases.length} versionGte cases + template wiring)`);
