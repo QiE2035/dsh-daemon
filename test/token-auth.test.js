@@ -115,6 +115,14 @@ assert.ok(tpl.includes("same = FS.readFileSync(WEB_AUTH_URL_FILE, \\'utf8\\').tr
 // SSH sessions must not pop a browser on the remote host
 assert.ok(tpl.includes('SSH_CONNECTION') && tpl.includes('SSH_TTY'),
   'template should suppress browser opening under SSH');
+// bootstrap robustness: any throw must only log and reset the poll guard —
+// never break the watchdog main loop or leave webAuthPollActive stuck
+assert.ok(tpl.includes('web auth bootstrap error:'),
+  'seedWebAuth should guard its synchronous body with try/catch');
+assert.ok(tpl.includes('web auth poll error:'),
+  'the poll timer callback should guard itself with try/catch (async throws)');
+assert.ok(tpl.includes('webAuthPollActive = false;'),
+  'the poll guard must be reset on every exit path (found/timeout/error)');
 // openBrowser is wired for all three platforms (template strings escape \')
 assert.ok(tpl.includes("\\'open\\'"), 'posix opener should be `open` on darwin');
 assert.ok(tpl.includes("\\'xdg-open\\'"), 'posix opener should be `xdg-open` on linux');
