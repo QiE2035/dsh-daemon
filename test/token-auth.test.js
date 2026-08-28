@@ -123,6 +123,20 @@ assert.ok(tpl.includes('web auth poll error:'),
   'the poll timer callback should guard itself with try/catch (async throws)');
 assert.ok(tpl.includes('webAuthPollActive = false;'),
   'the poll guard must be reset on every exit path (found/timeout/error)');
+// timeout must clear the stale URL file (the previous run's token died with
+// its process; status must not show a dead URL as valid)
+assert.ok(tpl.includes('FS.unlinkSync(WEB_AUTH_URL_FILE)'),
+  'the poll timeout path should unlink the stale auth URL file');
+// the log fd is always closed even when readSync throws (no fd leak)
+assert.ok(tpl.includes('if (fd >= 0) { try { FS.closeSync(fd); } catch (e2) {} }'),
+  'the log fd should be closed in a finally-style guard');
+// P1a: the win32 openBrowser powershell must NOT be detached — Node maps
+// detached to DETACHED_PROCESS, which hangs Start-Process (same empirical
+// finding as the web-launch wrapper; version-gate.test.js asserts that too)
+assert.ok(tpl.includes("CP.spawn(\\'powershell.exe\\', [\\'-NoProfile\\', \\'-NonInteractive\\', \\'-Command\\', cmd], { stdio: \\'ignore\\', windowsHide: true })"),
+  'win32 openBrowser should spawn powershell without detached (DETACHED_PROCESS hangs Start-Process)');
+assert.ok(tpl.includes('NOT detached: on Windows Node maps detached to DETACHED_PROCESS'),
+  'the win32 openBrowser comment should document why detached is avoided');
 // openBrowser is wired for all three platforms (template strings escape \')
 assert.ok(tpl.includes("\\'open\\'"), 'posix opener should be `open` on darwin');
 assert.ok(tpl.includes("\\'xdg-open\\'"), 'posix opener should be `xdg-open` on linux');
