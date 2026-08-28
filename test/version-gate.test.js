@@ -85,13 +85,17 @@ assert.ok(src.includes('-WindowStyle Hidden'),
   'win32 launch should pass -WindowStyle Hidden (STARTF_USESHOWWINDOW + SW_HIDE)');
 assert.ok(src.includes('0xC0000142'),
   'template comment should document why CREATE_NO_WINDOW is avoided');
-// The powershell wrapper must NOT be detached: on Windows Node maps
+// Every powershell spawn must NOT be detached: on Windows Node maps
 // detached:true to DETACHED_PROCESS, which hangs Start-Process (no PID file,
-// child never starts — verified empirically).
-const wrapperSpawn = spawnCalls.find((c) => c.includes('powershell.exe'));
-assert.ok(wrapperSpawn, 'powershell wrapper spawn should exist in the template');
-assert.ok(!wrapperSpawn.includes('detached'),
-  'powershell wrapper spawn must not use detached (DETACHED_PROCESS hangs Start-Process): ' + wrapperSpawn);
+// child never starts — verified empirically). This invariant applies to ALL
+// powershell spawns in the template — the web-launch wrapper (launch()) and
+// the openBrowser helper — not just the first one found.
+const wrapperSpawns = spawnCalls.filter((c) => c.includes('powershell.exe'));
+assert.ok(wrapperSpawns.length >= 1, 'powershell spawn should exist in the template');
+for (const call of wrapperSpawns) {
+  assert.ok(!call.includes('detached'),
+    'powershell spawn must not use detached (DETACHED_PROCESS hangs Start-Process): ' + call);
+}
 // The win32 web log is rotated before the fresh run: Start-Process redirects
 // with overwrite semantics, so the previous generation is kept as web.log.1
 // (bounded: current + one previous run; previous crash output survives).
