@@ -212,6 +212,7 @@ into the generated watchdog script:
 | `DSH_DAEMON_NPM_REGISTRY` | `https://registry.npmjs.org` | registry used for checks and pnpm update |
 | `DSH_DAEMON_PROFILE` | `web` | profile directory holding the plugin |
 | `DSH_DAEMON_HEALTH_INTERVAL` | `30s` | health-check interval of the watchdog loop (`ms`/`s`/`m`; 3 failures trigger a restart) |
+| `DSH_DAEMON_OPEN_BROWSER` | `1` | when `0`, never auto-open the browser even when a new-dsh launch token is detected (the URL is still written to `~/.dsh/daemon/.web-auth-url` and the watchdog log for manual access) |
 | `DSH_DAEMON_CLI_DIR` | node bin dir | directory for the generated `dsh-daemon` CLI (tests/sandboxed installs point it at a temp dir to avoid polluting the real PATH) |
 | `DSH_DAEMON_NO_SYSTEM` | unset | when `1`, skips system-level registration (launchd/schtasks/systemd) — test/sandboxed installs never touch the host's services; the watchdog is still started directly |
 
@@ -241,6 +242,36 @@ DYNAMIC=1 node test/harness.js dsh_daemon_status # dynamic sandbox mode
 
 The harness runs the real plugin code with real bash/fs and invokes the tool
 for real.
+
+### v0.1.19 — dsh web token-auth adaptation (seeding the `?token=` launch token)
+
+Since `dsh` ≥ 0.1.2-alpha.1 (harness commit 3e24087bfa) `dsh web` generates an
+in-process random token at startup and prints
+`dsh web: http://127.0.0.1:<port>/?token=...`: the browser must visit that URL
+once to seed a 30-day host-only Cookie (the signing key persists across
+restarts; a bare 3080 visit with no Cookie → 401). The watchdog used to launch
+with `--no-open`, so the user's browser never got a Cookie and the daemon-managed
+web was 401.
+
+**Adaptation**: after launching, the watchdog extracts the **current run's**
+token URL from `dsh-web.log` (the web process stdout), then:
+
+- `?token=` detected (new dsh) → open the default browser once to seed the
+  Cookie (same as manual `dsh web`); if opening fails (headless), the URL is
+  already on disk for manual access;
+- not detected (old dsh) → status quo (`--no-open`, never touch the browser);
+- the URL is always written to `~/.dsh/daemon/.web-auth-url` (0600, overwritten
+  each launch) and shown by `dsh-daemon status`;
+- `DSH_DAEMON_OPEN_BROWSER=0` disables the auto-popup (disk + log only);
+- the scan is anchored to the pre-launch file offset: the append-only POSIX log
+  never reuses an old run's dead token; win32 `Start-Process` overwrite
+  semantics fall back to reading the whole file; a dedupe guard prevents double
+  popups in crash loops;
+- the version gate mirrors the `--no-open` pattern
+  (`DSH_TOKEN_AUTH_MIN = 0.1.2-alpha.1`, module-scope functions inlined into the
+  watchdog via `toString()`, re-decided at every launch) and only skips the poll
+  when the installed dsh is **known** to predate token auth; the URL-line probe
+  is the authoritative detector.
 
 ### v0.1.18 — Windows black-box fix: hidden console, not no console; `start` waits for health
 

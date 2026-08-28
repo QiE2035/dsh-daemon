@@ -162,6 +162,7 @@ watchdog **启动时及每 6 小时**检查 npm registry，并用 pnpm 更新 pr
 | `DSH_DAEMON_NPM_REGISTRY` | `https://registry.npmjs.org` | 检查与 pnpm 更新所用的 registry |
 | `DSH_DAEMON_PROFILE` | `web` | 存放插件的 profile 目录 |
 | `DSH_DAEMON_HEALTH_INTERVAL` | `30s` | watchdog 循环的健康检查间隔（`ms`/`s`/`m`；连续 3 次失败触发重启） |
+| `DSH_DAEMON_OPEN_BROWSER` | `1` | `0` 时即使检测到新版 dsh 的启动 token 也不自动弹浏览器（URL 仍写入 `~/.dsh/daemon/.web-auth-url` 与 watchdog 日志，可人工访问） |
 | `DSH_DAEMON_CLI_DIR` | node bin 目录 | 生成的 `dsh-daemon` CLI 写入目录（测试/沙箱安装时指向临时目录，避免污染真实 PATH） |
 | `DSH_DAEMON_NO_SYSTEM` | 未设置 | `1` 时跳过系统级注册（launchd/schtasks/systemd）——测试/沙箱安装不触碰宿主系统服务，watchdog 仍直接启动 |
 
@@ -188,6 +189,29 @@ DYNAMIC=1 node test/harness.js dsh_daemon_status # 动态沙箱模式
 ```
 
 测试驱动运行真实插件代码（真实 bash/fs），并真实调用工具。
+
+### v0.1.19 — dsh web token 授权适配（`?token=` 启动令牌种子）
+
+`dsh` ≥ 0.1.2-alpha.1（harness commit 3e24087bfa）起 `dsh web` 启动时生成进程
+内随机 token 并打印 `dsh web: http://127.0.0.1:<port>/?token=...`：浏览器访问该
+URL 一次后种下 30 天有效的 host-only Cookie（签名密钥持久化，跨重启有效），
+直接访问 3080 无 Cookie → 401。此前 watchdog 用 `--no-open` 拉起，用户浏览器
+从未种过 Cookie，daemon 托管的 web 直接 401。
+
+**适配**：watchdog 拉起 web 后从 `dsh-web.log`（web stdout 的重定向目标）提取
+**本次运行**的 token URL，然后：
+
+- 检测到 `?token=`（新版 dsh）→ 打开默认浏览器访问一次种 Cookie（与手动
+  `dsh web` 行为一致）；无 GUI 环境打开失败时 URL 已落盘可人工访问；
+- 未检测到（旧版 dsh）→ 保持现状（`--no-open`、绝不弹浏览器）；
+- token URL 始终写入 `~/.dsh/daemon/.web-auth-url`（0600，每次 launch 覆盖），
+  `dsh-daemon status` 会显示当前有效 URL；
+- `DSH_DAEMON_OPEN_BROWSER=0` 关闭自动弹窗（仅落盘 + 日志）；
+- 提取锚定 launch 前的文件偏移：POSIX 追加日志不会误取旧 run 的失效 token；
+  win32 `Start-Process` 覆盖语义下自动回退读整文件；去重守卫防崩溃循环双弹窗；
+- 版本门控照搬 `--no-open` 模式（`DSH_TOKEN_AUTH_MIN = 0.1.2-alpha.1`，
+  模块级函数经 `toString()` 内联进 watchdog，每次 launch 运行时重判），仅在
+  **确定**旧版时跳过轮询；URL 行探测是主判据，与版本无关地可靠。
 
 ### v0.1.18 — Windows 黑框修复：隐藏控制台而非无控制台；`start` 等待健康
 
