@@ -56,8 +56,13 @@ assert.strictEqual(
   'http://127.0.0.1:8080/?token=abc-12_34DEF-');
 // port mismatch: a URL line for another port must not be treated as ours
 assert.strictEqual(gate.extractTokenUrl(`dsh web: http://127.0.0.1:9999/?token=${tok}`, 3080), null);
-// old dsh prints a bare URL (no token): no match
+// old dsh prints a bare URL (no token): no match — the probe is `?token=` presence
 assert.strictEqual(gate.extractTokenUrl('dsh web: http://127.0.0.1:3080/', 3080), null);
+assert.strictEqual(gate.extractTokenUrl('dsh web: http://127.0.0.1:3080/plain', 3080), null);
+// the probe matches any URL shape (future versions may change the host/path),
+// as long as it carries ?token= and our port
+assert.strictEqual(gate.extractTokenUrl('dsh web: http://localhost:3080/?token=abc123', 3080),
+  'http://localhost:3080/?token=abc123');
 // trailing content after the token still yields the full token
 assert.strictEqual(
   gate.extractTokenUrl(`dsh web: http://127.0.0.1:3080/?token=${tok} more`, 3080),
@@ -98,6 +103,18 @@ assert.ok(tpl.includes('WEB_AUTH_URL_FILE'),
   'template should persist the token URL to .web-auth-url');
 assert.ok(tpl.includes('OPEN_BROWSER'),
   'template should gate browser opening on DSH_DAEMON_OPEN_BROWSER');
+// reverse insurance: a new dsh whose token line is slow to appear is waited
+// for (fast poll then slow retry phase), never dismissed as "no token"
+assert.ok(tpl.includes('WEB_TOKEN_SLOW_MS'),
+  'template should have a slow retry phase after the fast poll');
+assert.ok(tpl.includes('WEB_TOKEN_SLOW_STEP_MS'),
+  'template should slow the poll cadence in the retry phase');
+// browser throttle: same URL as last recorded launch is not re-opened
+assert.ok(tpl.includes("same = FS.readFileSync(WEB_AUTH_URL_FILE, \\'utf8\\').trim() === url"),
+  'template should compare the new URL against the last recorded one');
+// SSH sessions must not pop a browser on the remote host
+assert.ok(tpl.includes('SSH_CONNECTION') && tpl.includes('SSH_TTY'),
+  'template should suppress browser opening under SSH');
 // openBrowser is wired for all three platforms (template strings escape \')
 assert.ok(tpl.includes("\\'open\\'"), 'posix opener should be `open` on darwin');
 assert.ok(tpl.includes("\\'xdg-open\\'"), 'posix opener should be `xdg-open` on linux');

@@ -207,8 +207,16 @@ URL 一次后种下 30 天有效的 host-only Cookie（签名密钥持久化，�
 - token URL 始终写入 `~/.dsh/daemon/.web-auth-url`（0600，每次 launch 覆盖），
   `dsh-daemon status` 会显示当前有效 URL；
 - `DSH_DAEMON_OPEN_BROWSER=0` 关闭自动弹窗（仅落盘 + 日志）；
-- 提取锚定 launch 前的文件偏移：POSIX 追加日志不会误取旧 run 的失效 token；
-  win32 `Start-Process` 覆盖语义下自动回退读整文件；去重守卫防崩溃循环双弹窗；
+- 提取锚定 launch 前的文件偏移：POSIX 追加日志不会误取旧 run 的失效 token
+  （永远取本次运行新增段里**最后一条** `dsh web:` 行；win32 `Start-Process`
+  覆盖语义下自动回退读整文件，`dsh-web.log.1` 是上一进程的过期 URL、从不读取）；
+- 探测跨版本稳定：`dsh web: http://...` 这行自最老版本就打印，新旧唯一差异是
+  URL 是否带 `?token=`，故以 `?token=` 有无为判据，对未来版本成立；
+- 反向保险：新版 dsh 的 token 行迟迟不出现时**继续等待重试**（快轮询 15s@250ms
+  后接慢轮询 75s@5s），绝不按「无 token」当旧版跳过；超时仅告警、下次 launch 重试；
+- 弹窗节流：token 每次启动必变，但 30 天 Cookie 跨重启有效（签名密钥持久），
+  因此**本次 URL 与上次记录相同时不再弹**（`.web-auth-url` 仍刷新供人工访问）；
+  `SSH_CONNECTION`/`SSH_TTY` 非空时抑制弹窗（远程会话不弹别人桌面），只落盘+日志；
 - 版本门控照搬 `--no-open` 模式（`DSH_TOKEN_AUTH_MIN = 0.1.2-alpha.1`，
   模块级函数经 `toString()` 内联进 watchdog，每次 launch 运行时重判），仅在
   **确定**旧版时跳过轮询；URL 行探测是主判据，与版本无关地可靠。

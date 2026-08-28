@@ -264,9 +264,22 @@ token URL from `dsh-web.log` (the web process stdout), then:
   each launch) and shown by `dsh-daemon status`;
 - `DSH_DAEMON_OPEN_BROWSER=0` disables the auto-popup (disk + log only);
 - the scan is anchored to the pre-launch file offset: the append-only POSIX log
-  never reuses an old run's dead token; win32 `Start-Process` overwrite
-  semantics fall back to reading the whole file; a dedupe guard prevents double
-  popups in crash loops;
+  never reuses an old run's dead token (the LAST `dsh web:` line of the current
+  run's segment wins; win32 `Start-Process` overwrite semantics fall back to
+  reading the whole file, and `dsh-web.log.1` — the previous process — is never
+  read);
+- the probe is cross-version stable: `dsh web: http://...` has been printed by
+  every dsh version, old and new differ only in whether the URL carries
+  `?token=` — so `?token=` presence is the judge, robust to future versions;
+- reverse insurance: if a new dsh's token line is slow to appear the watchdog
+  KEEPS WAITING (fast poll 15s@250ms then a slow retry phase 75s@5s) instead of
+  dismissing it as "no token" (treating a probe failure as old dsh would miss
+  the auth); on total timeout it only logs and the next launch retries;
+- popup throttle: the token changes on every start but the 30-day cookie
+  outlives any single token (persistent signing key), so the browser is not
+  re-opened when the URL equals the last recorded one (`.web-auth-url` is still
+  refreshed for manual access); `SSH_CONNECTION`/`SSH_TTY` non-empty suppresses
+  the popup entirely (never open a browser on a remote host's desktop);
 - the version gate mirrors the `--no-open` pattern
   (`DSH_TOKEN_AUTH_MIN = 0.1.2-alpha.1`, module-scope functions inlined into the
   watchdog via `toString()`, re-decided at every launch) and only skips the poll
