@@ -1,0 +1,53 @@
+# dsh-daemon 容器编排（DeepSeek Harness web + dsh-daemon 自愈）
+#
+# 持久化设计（避免每次重建容器重装插件/重配/Cookie 失效）：
+#   ./data/dsh-home  → 整个 DSH_HOME，包含：
+#     - profiles/        插件安装（@chenkai114/dsh-daemon 等）+ bundle 配置
+#     - .credentials.yaml  token 授权签名密钥（浏览器 Cookie 不失效）
+#     - settings.yaml     模型/主题/agent 配置
+#     - sessions/  storages/  attachments/  会话历史与数据
+#     - daemon/           watchdog.js + 日志（首次由镜像预置，之后随卷持久）
+#
+# 注意：daemon/watchdog.js 是镜像构建期生成的，版本绑定镜像；
+#       升级镜像后首次启动，新插件会自动重新生成 watchdog（GEN_VERSION 机制）。
+
+services:
+  deepseek-harness:
+    image: registry.nevis.sina.com.cn/wbcc/deepseek-harness:0.1.21
+    container_name: deepseek-harness
+    restart: unless-stopped
+
+    ports:
+      # web UI：容器内 watchdog 托管 dsh web 在 3080。
+      # 用户浏览器访问 http://127.0.0.1:3080
+      - "3080:3080"
+
+    volumes:
+      # 核心持久卷：整个 DSH_HOME（插件 / 凭据 / 配置 / 会话）
+      - ./data/dsh-home:/root/.dsh
+      # 如需单独持久日志，可加（不挂也不影响功能）：
+      # - ./data/dsh-logs:/root/.dsh/daemon/logs
+
+    environment:
+      - DSH_HOME=/root/.dsh
+      # 容器无 GUI，不自动弹浏览器；授权 URL 写入 ~/.dsh/daemon/.web-auth-url
+      # 首次访问时从该文件或容器日志取 token URL 访问一次种 Cookie
+      - DSH_DAEMON_OPEN_BROWSER=0
+      # 容器无 systemd，跳过系统服务注册（watchdog 由 entrypoint supervisor 托管）
+      - DSH_DAEMON_NO_SYSTEM=1
+      # 自动更新：默认 restart（v0.1.14+），空闲自动重启 web；容器里 web 重启不影响容器
+      # - DSH_DAEMON_UPDATE_MODE=restart
+
+    healthcheck:
+      # /health 由 dsh-daemon 插件注册（v0.1.16+），返回 200 表示 web + 插件在线
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:3080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
