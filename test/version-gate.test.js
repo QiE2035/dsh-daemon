@@ -104,4 +104,23 @@ assert.ok(src.includes('Move-Item -Force'),
 assert.ok(src.includes("WEB_LOG + \\'.1\\'"),
   'rotation target should be web.log.1');
 
+// The `dsh web` launch must never inherit the operator's launch directory as
+// its cwd. A daemon started from a git checkout / monorepo / $HOME otherwise
+// hands that (possibly 100k-file) tree to the web process, where every
+// relative-path scan and file watcher walks it. Both platform launches pass
+// the same DSH-owned directory.
+assert.ok(src.includes('const WEB_CWD = PROFILE_DIR;'),
+  'template should pin the web working directory to a DSH-owned path (WEB_CWD)');
+assert.ok(!src.includes("const WEB_CWD = '.'") && !src.includes('const WEB_CWD = process.cwd()'),
+  'WEB_CWD must not fall back to the launch directory');
+assert.ok(src.includes('FS.mkdirSync(WEB_CWD, { recursive: true })'),
+  'launch should create the working directory before spawning (ENOENT otherwise)');
+const cwdSpawns = spawnCalls.filter((call) => call.includes('cwd: WEB_CWD'));
+assert.strictEqual(cwdSpawns.length, 2,
+  'both dsh web launches (posix child + win32 powershell wrapper) must pass cwd: WEB_CWD, got ' + cwdSpawns.length);
+assert.ok(cwdSpawns.some((call) => call.includes('process.execPath, args') && call.includes('detached: true')),
+  'the posix dsh web launch must pass cwd: WEB_CWD');
+assert.ok(cwdSpawns.some((call) => call.includes('powershell.exe') && call.includes('ps],')),
+  'the win32 launch wrapper must pass cwd: WEB_CWD (Start-Process inherits it)');
+
 console.log(`version-gate tests passed (${cases.length} versionGte cases + template wiring)`);
